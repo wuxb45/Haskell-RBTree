@@ -1,0 +1,18 @@
+Pure haskell implementation from Wu Xingbo (wuxb45@gmail.com) 2011
+
+to build & install for yourself:
+shell> runhaskell Setup.lhs configure --user
+shell> runhaskell Setup.lhs build
+shell> runhaskell Setup.lhs install
+
+on any problem, you may try this:
+shell> runhaskell Setup.lhs register
+
+for system, replace '--user' with '--ghc'
+
+run simple test:
+ghci> :m + Data.Tree.RBTreeTest
+ghci> testRB
+It takes seconds to run. Then you will see "just xxxx True"s for success.
+
+read Data.Tree.RBTreeTest.lhs for usage of RBTree.
