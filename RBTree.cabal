@@ -20,4 +20,4 @@ Library
   Exposed-modules:  
     Data.Tree.RBTree, 
     Data.Tree.RBTreeTest
-  ghc-options:     -Wall -funbox-strict-fields -fvia-C -optc-O2 -O2
+  ghc-options:     -Wall -funbox-strict-fields -optc-O2
