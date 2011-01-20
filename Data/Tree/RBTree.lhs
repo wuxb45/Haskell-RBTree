@@ -4,6 +4,8 @@
   Copyright (c) 2010 Wu Xingbo (wuxb45@gmail.com)
   New BSD License (see http://www.opensource.org/licenses/bsd-license.php)
 
+> {-# LANGUAGE BangPatterns #-}
+
 > module Data.Tree.RBTree 
 > (Color, RBTree, emptyRB,
 >  insert, insertOrd, insertOrdList, 
@@ -19,7 +21,7 @@
 
 > data Color = Red | Black deriving (Eq)
 
-> data RBTree a = Node Color a (RBTree a) (RBTree a)
+> data RBTree a = Node Color a !(RBTree a) !(RBTree a)
 >               | Leaf
 
   RBTree in a 'Zip' mode.
@@ -29,10 +31,10 @@
 
 > data Direction = ToLeft | ToRight deriving (Show,Eq)
 
-> data Path a = Path Color a Direction (RBTree a)
+> data Path a = Path Color a Direction !(RBTree a)
 >               deriving (Show)
 
-> data RBZip a = RBZip (RBTree a) [Path a]
+> data RBZip a = RBZip !(RBTree a) ![Path a]
 >                deriving (Show)
 
   Simply show tree in (), hard to read but easy to parse
@@ -85,11 +87,9 @@
 
 > topMostZip :: RBZip a -> RBZip a
 
-> topMostZip (RBZip s ((Path c v d s1):path)) =
->     topMostZip (RBZip (Node c v l r) path)
->     where (l,r) = case d of
->               ToLeft -> (s,s1)
->               ToRight -> (s1,s)
+> topMostZip (RBZip s ((Path c v d s1):path)) = case d of 
+>         ToLeft -> topMostZip (RBZip (Node c v s s1) path)
+>         ToRight -> topMostZip (RBZip (Node c v s1 s) path)
 > topMostZip z = z
 
   Get the Leftmost non-leaf node from a Zip.
@@ -133,10 +133,9 @@
 > insertRedZip :: (a -> a -> Ordering) -> RBZip a -> a -> RBZip a
 
 > insertRedZip _ (RBZip Leaf path) v = RBZip (Node Red v Leaf Leaf) path
-> insertRedZip f (RBZip (Node c v l r) path) new = case f new v of
->     LT -> insertRedZip f (RBZip l ((Path c v ToLeft r):path)) new
->     EQ -> insertRedZip f (RBZip l ((Path c v ToLeft r):path)) new
->     GT -> insertRedZip f (RBZip r ((Path c v ToRight l):path)) new
+> insertRedZip f (RBZip (Node c v l r) path) new
+>     | f new v == GT = insertRedZip f (RBZip r ((Path c v ToRight l):path)) new
+>     | otherwise     = insertRedZip f (RBZip l ((Path c v ToLeft r):path)) new
 
   insertFixup:
   a : current node
@@ -160,11 +159,11 @@
 >           (newBL,newBR) = case db of
 >               ToLeft -> (a,sb)
 >               ToRight -> (sb,a)
->           newD = setBlack d
+>           !newD = setBlack d
 
 > insertFixup (RBZip a@(Node Red va sal sar) ((Path Red vb db sb):(Path Black vc dc d):path)) =
 >     RBZip newZ (newP:path)
->     where (newZ,newP) = case (dc,db) of 
+>     where (newZ, newP) = case (dc,db) of 
 >               (ToLeft,ToLeft) -> (a,Path Black vb dc (Node Red vc sb d))
 >               (ToLeft,ToRight) -> (Node Red vb sb sal, Path Black va dc (Node Red vc sar d))
 >               (ToRight,ToLeft) -> (Node Red vb sar sb, Path Black va dc (Node Red vc d sal))
@@ -230,8 +229,8 @@
   case 3: both not null
 
 > removeZip (RBZip (Node c _ l r@(Node _ vr srl _)) path) = removeZip newX
->     where newX = leftmostZip (RBZip r ((Path c newV ToRight l):path))
->           newV = leftmostV vr srl
+>     where !newX = leftmostZip (RBZip r ((Path c newV ToRight l):path))
+>           !newV = leftmostV vr srl
 
   fixup : 
 
@@ -245,7 +244,7 @@
 
 > removeFixup (RBZip a ((Path _ vb db (Node Red vd l r)):path)) =
 >     removeFixup $ RBZip a ((Path Red vb db newW):(Path Black vd db newS):path)
->     where (newW,newS) = case db of
+>     where (!newW, !newS) = case db of
 >               ToLeft -> (l,r)
 >               ToRight -> (r,l)
 
@@ -268,10 +267,10 @@
 
 > removeFixup (RBZip a ((Path cb vb db d@(Node Black _ _ _)):path)) = 
 >     removeFixup $ (RBZip (Node cb vb newL newR) path)
->     where (newL,newR) = case db of
+>     where (!newL, !newR) = case db of
 >               ToLeft -> (a,d')
 >               ToRight -> (d',a)
->           d' = setRed d
+>           !d' = setRed d
 
   any other case: set current node to black and return.
 
@@ -289,9 +288,9 @@
 >     case dl == dr of 
 >         True -> liftM2 (+) inc dl
 >         False -> Nothing
->     where dl = vD l
->           dr = vD r
->           inc = case c of
+>     where !dl = vD l
+>           !dr = vD r
+>           !inc = case c of
 >               Red -> Just 0
 >               Black -> Just 1
 
@@ -303,6 +302,6 @@
 > vR (Node Black _ l r) = (vR l) && (vR r)
 > vR (Node Red _ l r) = 
 >     (cl /= Red) && (cr /= Red) && (vR l) && (vR r)
->     where cl = getColor l
->           cr = getColor r
+>     where !cl = getColor l
+>           !cr = getColor r
 

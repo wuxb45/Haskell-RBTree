@@ -16,8 +16,8 @@ Cabal-Version:     >= 1.2
 extra-source-files: README
 
 Library
-  Build-Depends:   base >=2 && <=4
+  Build-Depends:   base >=4
   Exposed-modules:  
     Data.Tree.RBTree, 
     Data.Tree.RBTreeTest
-  ghc-options:     -Wall
+  ghc-options:     -Wall -funbox-strict-fields -fvia-C -optc-O2 -O2

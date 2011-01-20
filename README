@@ -16,3 +16,9 @@ ghci> testRB
 It takes seconds to run. Then you will see "just xxxx True"s for success.
 
 read Data.Tree.RBTreeTest.lhs for usage of RBTree.
+
+
+change log (0.0.2):
+add bangpatterns to some data field.
+add ghc optimization flags to .cabal
+be careful of memory usage. insert 10MiB Int values takes 3 seconds and 800MiB memory space.
