@@ -29,7 +29,7 @@
   RBZip is equivalent to RBTree in Logic.
   All RBZip can be convert to a RBTree by Trace back to Root point.
 
-> data Direction = ToLeft | ToRight deriving (Show,Eq)
+> data Direction = ToLeft | ToRight deriving (Eq)
 
 > data Path a = Path Color a Direction !(RBTree a)
 >               deriving (Show)
@@ -37,17 +37,33 @@
 > data RBZip a = RBZip !(RBTree a) ![Path a]
 >                deriving (Show)
 
+> data Interval a = Interval (RealOrd a, RealOrd a)
+
+> data RealOrd a = PInfinity | NInfinity | RealValue a
+
   Simply show tree in (), hard to read but easy to parse
 
 > instance Show a => Show (RBTree a) where
 >     show (Node c v l r) = "(" ++ show l ++ show v ++ show c ++ show r ++ ")"
->     show Leaf = []
+>     show Leaf = "."
 
   Red node shows '*'
 
 > instance Show Color where
 >     show Red = "*"
 >     show Black = ""
+
+> instance Show Direction where
+>     show ToLeft = "L"
+>     show ToRight = "R"
+
+> instance Show a => Show (RealOrd a) where
+>     show PInfinity = "+INF"
+>     show NInfinity = "-INF"
+>     show (RealValue a) = show a
+
+> instance Show a => Show (Interval a) where
+>     show (Interval (l, r)) = "[" ++ show l ++ ", " ++ show r ++ "]"
 
 > emptyRB :: RBTree a
 
@@ -83,6 +99,10 @@
 > toTree z = tree
 >     where (RBZip tree _) = topMostZip z
 
+> getValueZip :: RBZip a -> Maybe a
+> getValueZip (RBZip Leaf _) = Nothing
+> getValueZip (RBZip (Node _ v _ _) _) = Just v
+
   Zip up.
 
 > topMostZip :: RBZip a -> RBZip a
@@ -94,11 +114,53 @@
 
   Get the Leftmost non-leaf node from a Zip.
 
-> leftmostZip :: RBZip a -> RBZip a
+> leftMostZip :: RBZip a -> RBZip a
 
-> leftmostZip this@(RBZip (Node _ _ Leaf _) _) = this
-> leftmostZip (RBZip (Node c v l r) path) = leftmostZip (RBZip l ((Path c v ToLeft r):path))
-> leftmostZip z = z
+> leftMostZip this@(RBZip (Node _ _ Leaf _) _) = this
+> leftMostZip (RBZip (Node c v l r) path) = leftMostZip (RBZip l ((Path c v ToLeft r):path))
+> leftMostZip z = z --only when leaf itself from start over
+
+> rightMostZip :: RBZip a -> RBZip a
+
+> rightMostZip this@(RBZip (Node _ _ _ Leaf) _) = this
+> rightMostZip (RBZip (Node c v l r) path) = rightMostZip (RBZip r ((Path c v ToRight l):path))
+> rightMostZip z = z --leaf itself
+
+> leftParentZip :: RBZip a -> RBZip a
+> leftParentZip (RBZip l ((Path c v ToLeft r):path)) = leftParentZip (RBZip (Node c v l r) path)
+> leftParentZip (RBZip r ((Path c v ToRight l):path)) = RBZip (Node c v l r) path
+> leftParentZip (RBZip t []) = RBZip Leaf [] -- no such parent, return a empty zip
+
+> rightParentZip :: RBZip a -> RBZip a
+> rightParentZip (RBZip r ((Path c v ToRight l):path)) = rightParentZip (RBZip (Node c v l r) path)
+> rightParentZip (RBZip l ((Path c v ToLeft r):path)) = RBZip (Node c v l r) path
+> rightParentZip (RBZip t []) = RBZip Leaf [] -- no such parent, return a empty zip
+
+  find predecessor/successor of a node/leaf
+
+> predZip :: RBZip a -> RBZip a
+
+> predZip (RBZip (Node c v l@(Node _ _ _ _) r) path) = rightMostZip (RBZip l ((Path c v ToLeft r):path))
+> predZip z@(RBZip Leaf path) = case lp of
+>   RBZip Leaf [] -> z -- itself
+>   _ -> lp
+>   where lp = leftParentZip z
+> predZip z@(RBZip (Node c v l r) path) = case lp of
+>   RBZip Leaf [] -> RBZip l ((Path c v ToLeft r):path)
+>   _ -> lp
+>   where lp = leftParentZip z
+
+> succZip :: RBZip a -> RBZip a
+
+> succZip (RBZip (Node c v l r@(Node _ _ _ _)) path) = leftMostZip (RBZip r ((Path c v ToRight l):path))
+> succZip z@(RBZip Leaf path) = case lp of
+>   RBZip Leaf [] -> z -- itself
+>   _ -> lp
+>   where lp = rightParentZip z
+> succZip z@(RBZip (Node c v l r) path) = case lp of
+>   RBZip Leaf [] -> RBZip r ((Path c v ToRight l):path)
+>   _ -> lp
+>   where lp = rightParentZip z
 
   Get the Leftmost non-leaf node's value from a Zip.
   param 1 : current node's value.
@@ -200,6 +262,29 @@
 >     GT -> searchZip f (RBZip r ((Path c v ToRight l):path)) vs
 >     EQ -> Just this
 
+  searchZipTrace : always returns the current point that the search stops.
+  returns a Zip-Node on equal, otherwise a Zip-Leaf
+
+> searchZipTrace :: (a -> a -> Ordering) -> RBZip a -> a -> RBZip a
+> searchZipTrace _ zip@(RBZip Leaf _) _ = zip
+> searchZipTrace f this@(RBZip (Node c v l r) path) vs = case f vs v of
+>     LT -> searchZipTrace f (RBZip l ((Path c v ToLeft r):path)) vs
+>     GT -> searchZipTrace f (RBZip r ((Path c v ToRight l):path)) vs
+>     EQ -> this
+
+> searchIntervalOrd :: (Ord a) => RBTree a -> a -> Interval a
+> searchIntervalOrd t a = searchInterval compare t a
+
+> searchInterval :: (a -> a -> Ordering) -> RBTree a -> a -> Interval a
+> searchInterval f t a = case r of
+>     RBZip Leaf _ -> Interval (toNRealOrd (predZip r), toPRealOrd (succZip r))
+>     _ -> Interval (toNRealOrd r, toPRealOrd r)
+>     where r = searchZipTrace f (toZip t) a
+>           toNRealOrd (RBZip Leaf _) = NInfinity
+>           toNRealOrd (RBZip (Node _ v _ _) _) = RealValue v
+>           toPRealOrd (RBZip Leaf _) = PInfinity
+>           toPRealOrd (RBZip (Node _ v _ _) _) = RealValue v
+
   delete functions.
   If there is no 'a' in tree, tree will be returned unmodified.
 
@@ -237,7 +322,7 @@
   case 3: both not null
 
 > deleteZip (RBZip (Node c _ l r@(Node _ vr srl _)) path) = deleteZip newX
->     where !newX = leftmostZip (RBZip r ((Path c newV ToRight l):path))
+>     where !newX = leftMostZip (RBZip r ((Path c newV ToRight l):path))
 >           !newV = leftmostV vr srl
 
   fixup : 
