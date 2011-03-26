@@ -1,16 +1,16 @@
   Module : RBTree
   Author : Wu Xingbo
 
-  Copyright (c) 2010 Wu Xingbo (wuxb45@gmail.com)
+  Copyright (c) 2010, 2011 Wu Xingbo (wuxb45@gmail.com)
   New BSD License (see http://www.opensource.org/licenses/bsd-license.php)
 
 > {-# LANGUAGE BangPatterns #-}
 
-> module Data.Tree.RBTree 
+> module Data.Tree.RBTree
 > (Color, RBTree, emptyRB,
->  insert, insertOrd, insertOrdList, 
->  remove, removeOrd, removeOrdList,
->  search, searchOrd,
+>  insert, insertOrd, insertOrdList,
+>  delete, deleteOrd, deleteOrdList,
+>  search, searchOrd, searchFast,
 >  vD, vR
 > )
 > where
@@ -184,6 +184,14 @@
 >     _ -> Nothing
 >     where rZip = searchZip f (toZip t) v
 
+> searchFast :: (a -> a -> Ordering) -> RBTree a -> a -> Maybe a
+
+> searchFast f (Node _ v l r) vs = case f vs v of
+>     LT -> searchFast f l vs
+>     GT -> searchFast f r vs
+>     EQ -> Just v
+> searchFast _ Leaf _ = Nothing
+
 > searchZip :: (a -> a -> Ordering) -> RBZip a -> a -> Maybe (RBZip a)
 
 > searchZip _ (RBZip Leaf _) _ = Nothing
@@ -192,58 +200,58 @@
 >     GT -> searchZip f (RBZip r ((Path c v ToRight l):path)) vs
 >     EQ -> Just this
 
-  remove functions.
+  delete functions.
   If there is no 'a' in tree, tree will be returned unmodified.
 
-> removeOrd :: (Ord a) => RBTree a -> a -> RBTree a
+> deleteOrd :: (Ord a) => RBTree a -> a -> RBTree a
 
-> removeOrd = remove compare
+> deleteOrd = delete compare
 
-> removeOrdList :: (Ord a) => RBTree a -> [a] -> RBTree a
+> deleteOrdList :: (Ord a) => RBTree a -> [a] -> RBTree a
 
-> removeOrdList = foldl removeOrd 
+> deleteOrdList = foldl deleteOrd 
 
-> remove :: (a -> a -> Ordering) -> RBTree a -> a -> RBTree a
+> delete :: (a -> a -> Ordering) -> RBTree a -> a -> RBTree a
 
-> remove f t a = 
+> delete f t a = 
 >     case searchZip f (toZip t) a of
->         Just z -> toTree . removeZip $ z
+>         Just z -> toTree . deleteZip $ z
 >         Nothing -> t
 
-> removeZip :: RBZip a -> RBZip a
+> deleteZip :: RBZip a -> RBZip a
 
-> removeZip z@(RBZip Leaf _) = z
+> deleteZip z@(RBZip Leaf _) = z
 
   case 1: left null
 
-> removeZip (RBZip (Node c _ Leaf r) path) = case c of --r may be Leaf
+> deleteZip (RBZip (Node c _ Leaf r) path) = case c of --r may be Leaf
 >     Red -> RBZip r path
->     Black -> removeFixup (RBZip r path)
+>     Black -> deleteFixup (RBZip r path)
 
   case 2: right null
 
-> removeZip (RBZip (Node c _ l Leaf) path) = case c of
+> deleteZip (RBZip (Node c _ l Leaf) path) = case c of
 >     Red -> RBZip l path
->     Black -> removeFixup (RBZip l path)
+>     Black -> deleteFixup (RBZip l path)
 
   case 3: both not null
 
-> removeZip (RBZip (Node c _ l r@(Node _ vr srl _)) path) = removeZip newX
+> deleteZip (RBZip (Node c _ l r@(Node _ vr srl _)) path) = deleteZip newX
 >     where !newX = leftmostZip (RBZip r ((Path c newV ToRight l):path))
 >           !newV = leftmostV vr srl
 
   fixup : 
 
-> removeFixup :: RBZip a -> RBZip a
+> deleteFixup :: RBZip a -> RBZip a
 
   endcase : 'a' may be Leaf!
 
-> removeFixup (RBZip a@(Node Red _ _ _) path) = RBZip (setBlack a) path
+> deleteFixup (RBZip a@(Node Red _ _ _) path) = RBZip (setBlack a) path
 
   case 1: brother of x is Red
 
-> removeFixup (RBZip a ((Path _ vb db (Node Red vd l r)):path)) =
->     removeFixup $ RBZip a ((Path Red vb db newW):(Path Black vd db newS):path)
+> deleteFixup (RBZip a ((Path _ vb db (Node Red vd l r)):path)) =
+>     deleteFixup $ RBZip a ((Path Red vb db newW):(Path Black vd db newS):path)
 >     where (!newW, !newS) = case db of
 >               ToLeft -> (l,r)
 >               ToRight -> (r,l)
@@ -251,22 +259,22 @@
   case 4: x's brother s is black, but s's outter child is Red
   c may be leaf
 
-> removeFixup (RBZip a ((Path cb vb ToLeft (Node Black vd c e@(Node Red _ _ _))):path)) = 
->     removeFixup . topMostZip $ RBZip (Node cb vd (Node Black vb a c) (setBlack e)) path
-> removeFixup (RBZip a ((Path cb vb ToRight (Node Black vd e@(Node Red _ _ _) c)):path)) = 
->     removeFixup . topMostZip $ RBZip (Node cb vd (setBlack e) (Node Black vb c a)) path
+> deleteFixup (RBZip a ((Path cb vb ToLeft (Node Black vd c e@(Node Red _ _ _))):path)) = 
+>     deleteFixup . topMostZip $ RBZip (Node cb vd (Node Black vb a c) (setBlack e)) path
+> deleteFixup (RBZip a ((Path cb vb ToRight (Node Black vd e@(Node Red _ _ _) c)):path)) = 
+>     deleteFixup . topMostZip $ RBZip (Node cb vd (setBlack e) (Node Black vb c a)) path
 
   case 3: x's brother s is black, but s's inner child is Red
 
-> removeFixup (RBZip a ((Path cb vb ToLeft (Node Black vd (Node Red vc scl scr) e)):path)) = 
->     removeFixup $ RBZip a ((Path cb vb ToLeft (Node Black vc scl (Node Red vd scr e))):path)
-> removeFixup (RBZip a ((Path cb vb ToRight (Node Black vd e (Node Red vc scl scr))):path)) = 
->     removeFixup $ RBZip a ((Path cb vb ToRight (Node Black vc (Node Red vd e scl) scr)):path)
+> deleteFixup (RBZip a ((Path cb vb ToLeft (Node Black vd (Node Red vc scl scr) e)):path)) = 
+>     deleteFixup $ RBZip a ((Path cb vb ToLeft (Node Black vc scl (Node Red vd scr e))):path)
+> deleteFixup (RBZip a ((Path cb vb ToRight (Node Black vd e (Node Red vc scl scr))):path)) = 
+>     deleteFixup $ RBZip a ((Path cb vb ToRight (Node Black vc (Node Red vd e scl) scr)):path)
 
   case 2: s's both children are not Red (Black or Leaf).
 
-> removeFixup (RBZip a ((Path cb vb db d@(Node Black _ _ _)):path)) = 
->     removeFixup $ (RBZip (Node cb vb newL newR) path)
+> deleteFixup (RBZip a ((Path cb vb db d@(Node Black _ _ _)):path)) = 
+>     deleteFixup $ (RBZip (Node cb vb newL newR) path)
 >     where (!newL, !newR) = case db of
 >               ToLeft -> (a,d')
 >               ToRight -> (d',a)
@@ -274,7 +282,7 @@
 
   any other case: set current node to black and return.
 
-> removeFixup (RBZip a path) = RBZip (setBlack a) path
+> deleteFixup (RBZip a path) = RBZip (setBlack a) path
 
   Verification functions.
 

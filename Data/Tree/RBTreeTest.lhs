@@ -17,6 +17,6 @@
 >       ++ " " ++ show (vD tr) ++ show (vR tr) 
 >       ++ " " ++ (vA tr xs)
 >     where ti = foldl' insertOrd t i
->           tr = foldl' removeOrd ti r
+>           tr = foldl' deleteOrd ti r
 > vA _ _ = ""
 

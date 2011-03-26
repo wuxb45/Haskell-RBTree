@@ -22,3 +22,8 @@ change log (0.0.2):
 add bangpatterns to some data field.
 add ghc optimization flags to .cabal
 be careful of memory usage. insert 10MiB Int values takes 3 seconds and 800MiB memory space.
+
+change log (0.0.3):
+add function "searchFast".
+rename 'remove*' functions to 'delete*'s.
+
