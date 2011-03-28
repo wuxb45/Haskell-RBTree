@@ -7,10 +7,12 @@
 > {-# LANGUAGE BangPatterns #-}
 
 > module Data.Tree.RBTree
-> (Color, RBTree, emptyRB,
+> (Color (Red, Black), RBTree (Node, Leaf), emptyRB,
+>  Interval (Interval), RealOrd (PInfinity, NInfinity, RealValue),
 >  insert, insertOrd, insertOrdList,
 >  delete, deleteOrd, deleteOrdList,
->  search, searchOrd, searchFast,
+>  search, searchOrd, searchFast, searchMax, searchMin,
+>  searchInterval, searchIntervalOrd,
 >  vD, vR
 > )
 > where
@@ -99,9 +101,9 @@
 > toTree z = tree
 >     where (RBZip tree _) = topMostZip z
 
-> getValueZip :: RBZip a -> Maybe a
-> getValueZip (RBZip Leaf _) = Nothing
-> getValueZip (RBZip (Node _ v _ _) _) = Just v
+> --getValueZip :: RBZip a -> Maybe a
+> --getValueZip (RBZip Leaf _) = Nothing
+> --getValueZip (RBZip (Node _ v _ _) _) = Just v
 
   Zip up.
 
@@ -129,19 +131,19 @@
 > leftParentZip :: RBZip a -> RBZip a
 > leftParentZip (RBZip l ((Path c v ToLeft r):path)) = leftParentZip (RBZip (Node c v l r) path)
 > leftParentZip (RBZip r ((Path c v ToRight l):path)) = RBZip (Node c v l r) path
-> leftParentZip (RBZip t []) = RBZip Leaf [] -- no such parent, return a empty zip
+> leftParentZip (RBZip _ []) = RBZip Leaf [] -- no such parent, return a empty zip
 
 > rightParentZip :: RBZip a -> RBZip a
 > rightParentZip (RBZip r ((Path c v ToRight l):path)) = rightParentZip (RBZip (Node c v l r) path)
 > rightParentZip (RBZip l ((Path c v ToLeft r):path)) = RBZip (Node c v l r) path
-> rightParentZip (RBZip t []) = RBZip Leaf [] -- no such parent, return a empty zip
+> rightParentZip (RBZip _ []) = RBZip Leaf [] -- no such parent, return a empty zip
 
   find predecessor/successor of a node/leaf
 
 > predZip :: RBZip a -> RBZip a
 
 > predZip (RBZip (Node c v l@(Node _ _ _ _) r) path) = rightMostZip (RBZip l ((Path c v ToLeft r):path))
-> predZip z@(RBZip Leaf path) = case lp of
+> predZip z@(RBZip Leaf _) = case lp of
 >   RBZip Leaf [] -> z -- itself
 >   _ -> lp
 >   where lp = leftParentZip z
@@ -153,7 +155,7 @@
 > succZip :: RBZip a -> RBZip a
 
 > succZip (RBZip (Node c v l r@(Node _ _ _ _)) path) = leftMostZip (RBZip r ((Path c v ToRight l):path))
-> succZip z@(RBZip Leaf path) = case lp of
+> succZip z@(RBZip Leaf _) = case lp of
 >   RBZip Leaf [] -> z -- itself
 >   _ -> lp
 >   where lp = rightParentZip z
@@ -239,14 +241,14 @@
 
 > searchOrd = search compare
 
-> search :: (a -> a -> Ordering) -> RBTree a -> a -> Maybe a
+> search :: (b -> a -> Ordering) -> RBTree a -> b -> Maybe a
 
 > search f t v = case rZip of
 >     Just (RBZip (Node _ v' _ _) _) -> Just v'
 >     _ -> Nothing
 >     where rZip = searchZip f (toZip t) v
 
-> searchFast :: (a -> a -> Ordering) -> RBTree a -> a -> Maybe a
+> searchFast :: (b -> a -> Ordering) -> RBTree a -> b -> Maybe a
 
 > searchFast f (Node _ v l r) vs = case f vs v of
 >     LT -> searchFast f l vs
@@ -254,7 +256,20 @@
 >     EQ -> Just v
 > searchFast _ Leaf _ = Nothing
 
-> searchZip :: (a -> a -> Ordering) -> RBZip a -> a -> Maybe (RBZip a)
+> searchMax :: (Ord a) => RBTree a -> Maybe a
+> searchMax t = case r of
+>     RBZip (Node _ v _ _) _ -> Just v
+>     _ -> Nothing
+>     where r = rightMostZip . toZip $ t
+
+> searchMin :: (Ord a) => RBTree a -> Maybe a
+> searchMin t = case r of
+>     RBZip (Node _ v _ _) _ -> Just v
+>     _ -> Nothing
+>     where r = leftMostZip . toZip $ t
+
+
+> searchZip :: (b -> a -> Ordering) -> RBZip a -> b -> Maybe (RBZip a)
 
 > searchZip _ (RBZip Leaf _) _ = Nothing
 > searchZip f this@(RBZip (Node c v l r) path) vs = case f vs v of
@@ -265,8 +280,8 @@
   searchZipTrace : always returns the current point that the search stops.
   returns a Zip-Node on equal, otherwise a Zip-Leaf
 
-> searchZipTrace :: (a -> a -> Ordering) -> RBZip a -> a -> RBZip a
-> searchZipTrace _ zip@(RBZip Leaf _) _ = zip
+> searchZipTrace :: (b -> a -> Ordering) -> RBZip a -> b -> RBZip a
+> searchZipTrace _ z@(RBZip Leaf _) _ = z
 > searchZipTrace f this@(RBZip (Node c v l r) path) vs = case f vs v of
 >     LT -> searchZipTrace f (RBZip l ((Path c v ToLeft r):path)) vs
 >     GT -> searchZipTrace f (RBZip r ((Path c v ToRight l):path)) vs
@@ -275,7 +290,11 @@
 > searchIntervalOrd :: (Ord a) => RBTree a -> a -> Interval a
 > searchIntervalOrd t a = searchInterval compare t a
 
-> searchInterval :: (a -> a -> Ordering) -> RBTree a -> a -> Interval a
+  search for a Interval.
+  for example: tree has 1,3,5,7. search for 3 returns [3,3] that indicates itself
+      search for 4 returns [3,5] indicates that 4 is between the element 3 and 5
+
+> searchInterval :: (b -> a -> Ordering) -> RBTree a -> b -> Interval a
 > searchInterval f t a = case r of
 >     RBZip Leaf _ -> Interval (toNRealOrd (predZip r), toPRealOrd (succZip r))
 >     _ -> Interval (toNRealOrd r, toPRealOrd r)
