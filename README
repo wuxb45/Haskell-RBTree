@@ -1,6 +1,9 @@
 Pure haskell implementation from Wu Xingbo (wuxb45@gmail.com) 2011
 
-to build & install for yourself:
+WARNING:This Implementation mainly concerns about functionality. 
+  After that I will improve the performence and efficiency.
+
+to Build & Install for yourself:
 shell> runhaskell Setup.lhs configure --user
 shell> runhaskell Setup.lhs build
 shell> runhaskell Setup.lhs install
@@ -10,20 +13,31 @@ shell> runhaskell Setup.lhs register
 
 for system, replace '--user' with '--ghc'
 
-run simple test:
-ghci> :m + Data.Tree.RBTreeTest
-ghci> testRB
-It takes seconds to run. Then you will see "just xxxx True"s for success.
-
-read Data.Tree.RBTreeTest.lhs for usage of RBTree.
-
-
-change log (0.0.2):
+changelog (0.0.2):
 add bangpatterns to some data field.
 add ghc optimization flags to .cabal
 be careful of memory usage. insert 10MiB Int values takes 3 seconds and 800MiB memory space.
 
-change log (0.0.3):
+changelog (0.0.3):
 add function "searchFast".
 rename 'remove*' functions to 'delete*'s.
+
+changelog (0.0.4):
+add functions for search min/max value.
+add functions for search for a interval that the two values in the tree holds the given value
+modified search functions can accept a 'compare' function like:
+    (b -> a -> Ordering)
+  search for an 'a' by first key of a (RBTree (a,b)) canbe done in such way:
+> b :: Int
+> b = 10
+> t :: RBTree (Int,String)
+> t = insertOrdList emptyRB [(1,"hello"), (2,"world")]
+> result :: (Int,String)
+> result = search (\k (k',_) -> k `compare` k') t 2
+it returns "Just (2,"world")"
+
+changelog (0.0.5):
+add three operators for insert/delete/search.
+updates the comments to co-op with haddock.
+delete the RBTreeTest module. clean is better.
 
